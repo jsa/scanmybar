@@ -15,16 +15,27 @@ def batches(itr, batch_size):
     if b:
         yield b
 
-_height = 16
+def mk_bar():
+    with open('pix.png', 'rb') as f:
+        pix = f.read()
+    # need to do this in two parts as composite input limit is 16 images
+    part = images.composite([(pix, 0, y, 1., images.TOP_LEFT) for y in xrange(10)],
+                            1, 10, 0x00000000, images.PNG)
+    return images.composite([(part, 0, y * 10, 1., images.TOP_LEFT) for y in xrange(3)],
+                            1, 30, 0x00000000, images.PNG), \
+           30
+bar, bar_height = mk_bar()
 
-with open('pix.png', 'rb') as f:
-    pix = f.read()
-bar = images.composite([(pix, 0, y, 1., images.TOP_LEFT) for y in xrange(_height)],
-                       1, _height, 0xff000000, images.PNG)
-
-def _char_img(bits):
-    return images.composite([(bar, x, 0, 1., images.TOP_LEFT) for x, c in enumerate(bits) if c == '1'],
-                            100, _height, 0x00000000, images.PNG)
+def _char_img(bits, scale=None):
+    if scale and not 0 < scale <= 10:
+        raise ValueError, "Scale %d out of limits" % scale
+    if scale > 1:
+        _bar = images.composite([(bar, x, 0, 1., images.TOP_LEFT) for x in xrange(scale)],
+                                scale, bar_height, 0x00000000, images.PNG)
+    else:
+        _bar = bar
+    return images.composite([(_bar, x * scale, 0, 1., images.TOP_LEFT) for x, c in enumerate(bits) if c == '1'],
+                            len(bits) * scale, bar_height, 0x00000000, images.PNG)
 
 class Code128Handler(webapp2.RequestHandler):
     _patterns = (
@@ -83,13 +94,18 @@ class Code128Handler(webapp2.RequestHandler):
 
     def get(self, value):
         patterns = self.patterns(value)
-        imgs = [(len(p), _char_img(p)) for p in patterns]
+        scale = int(self.request.get('s', '1'))
+        imgs = [(len(p) * scale, _char_img(p, scale)) for p in patterns]
         (width, final), imgs = imgs[0], imgs[1:]
         for w, img in imgs:
             final = images.composite([(final, 0, 0, 1., images.TOP_LEFT),
                                       (img, width, 0, 1., images.TOP_LEFT)],
-                                     width + w, _height, 0x00000000, images.PNG)
+                                     width + w, bar_height, 0x00000000, images.PNG)
             width += w
+        if scale > 1:
+            final = images.composite([(final, 0, y * bar_height, 1., images.TOP_LEFT)
+                                      for y in xrange(scale)],
+                                     width, bar_height * scale, 0x00000000, images.PNG)
         self.response.headers['Content-Type'] = mail.EXTENSION_MIME_MAP['png']
         self.response.headers['Cache-Control'] = "public, max-age=%d" % (24 * 60 * 60)
         self.response.out.write(final)
