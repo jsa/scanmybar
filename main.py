@@ -94,6 +94,14 @@ class Code128Handler(webapp2.RequestHandler):
         self.response.headers['Cache-Control'] = "public, max-age=%d" % (24 * 60 * 60)
         self.response.out.write(final)
 
+
+class DocHandler(webapp2.RequestHandler):
+    """This should be enough documentation."""
+    def get(self):
+        self.redirect("/code128/Hello%20world!.png")
+
+
 app = webapp2.WSGIApplication([
+   (r'/', DocHandler),
    (r'/code128/(.+)\.png', Code128Handler),
 ])

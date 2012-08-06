@@ -6,9 +6,6 @@ threadsafe: true
 
 default_expiration: 0
 
-inbound_services:
-- warmup
-
 handlers:
 - url: /.*
   script: main.app
