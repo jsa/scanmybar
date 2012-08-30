@@ -35,7 +35,7 @@ def _char_img(bits, scale=None):
     else:
         _bar = bar
     return images.composite([(_bar, x * scale, 0, 1., images.TOP_LEFT) for x, c in enumerate(bits) if c == '1'],
-                            len(bits) * scale, bar_height, 0x00000000, images.PNG)
+                            len(bits) * scale, bar_height, 0xffffffff, images.PNG)
 
 class Code128Handler(webapp2.RequestHandler):
     _patterns = (
