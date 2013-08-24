@@ -5,16 +5,6 @@ from google.appengine.api import images, mail
 import webapp2
 
 
-def batches(itr, batch_size):
-    b = []
-    for e in itr:
-        b.append(e)
-        if len(b) == batch_size:
-            yield b
-            b = []
-    if b:
-        yield b
-
 # BMP data for a black pixel
 _pix = "BMJ\x00\x00\x00\x00\x00\x00\x00F\x00\x00\x008\x00\x00\x00\x01\x00\x00" \
        "\x00\x01\x00\x00\x00\x01\x00\x10\x00\x03\x00\x00\x00\x04\x00\x00\x00" \
@@ -42,6 +32,7 @@ def _char_img(bits, scale=None):
                             len(bits) * scale, bar_height, 0xffffffff, images.PNG)
 
 class Code128Handler(webapp2.RequestHandler):
+    # pattern ref: http://en.wikipedia.org/wiki/Code_128#Bar_code_widths
     _patterns = (
         '11011001100', '11001101100', '11001100110', '10010011000', '10010001100',
         '10001001100', '10011001000', '10011000100', '10001100100', '11001001000',
