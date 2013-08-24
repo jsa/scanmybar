@@ -15,11 +15,15 @@ def batches(itr, batch_size):
     if b:
         yield b
 
+# BMP data for a black pixel
+_pix = "BMJ\x00\x00\x00\x00\x00\x00\x00F\x00\x00\x008\x00\x00\x00\x01\x00\x00" \
+       "\x00\x01\x00\x00\x00\x01\x00\x10\x00\x03\x00\x00\x00\x04\x00\x00\x00" \
+       "\x13\x0b\x00\x00\x13\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
+       "\xf8\x00\x00\xe0\x07\x00\x00\x1f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
 def mk_bar():
-    with open('pix.png', 'rb') as f:
-        pix = f.read()
     # need to do this in two parts as composite input limit is 16 images
-    part = images.composite([(pix, 0, y, 1., images.TOP_LEFT) for y in xrange(10)],
+    part = images.composite([(_pix, 0, y, 1., images.TOP_LEFT) for y in xrange(10)],
                             1, 10, 0x00000000, images.PNG)
     return images.composite([(part, 0, y * 10, 1., images.TOP_LEFT) for y in xrange(3)],
                             1, 30, 0x00000000, images.PNG), \
@@ -118,6 +122,6 @@ class DocHandler(webapp2.RequestHandler):
 
 
 app = webapp2.WSGIApplication([
-   (r'/', DocHandler),
-   (r'/code128/(.+)\.png', Code128Handler),
+   (r"^/", DocHandler),
+   (r"^/code128/(.+)\.png$", Code128Handler),
 ])
