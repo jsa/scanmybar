@@ -122,6 +122,6 @@ class DocHandler(webapp2.RequestHandler):
 
 
 app = webapp2.WSGIApplication([
-   (r"^/", DocHandler),
+   (r"^/$", DocHandler),
    (r"^/code128/(.+)\.png$", Code128Handler),
 ])
