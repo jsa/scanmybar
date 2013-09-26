@@ -58,15 +58,6 @@ class Code128Handler(webapp2.RequestHandler):
         '11010011100', '1100011101011')
 
     @classmethod
-    def varB(cls, s):
-        def _val(c):
-            val = ord(c) - 32
-            if not 0 <= val < len(cls._patterns):
-                raise ValueError, "Character '%s' out of encoding range" % c
-            return val
-        return [104] + map(_val, s)
-
-    @classmethod
     def varC(cls, s):
         values = []
         while s:
@@ -79,16 +70,37 @@ class Code128Handler(webapp2.RequestHandler):
     def check(cls, values):
         return (sum(v * (w or 1) for w, v in enumerate(values))) % 103
 
-    @classmethod
-    def patterns(cls, s):
+    def __init__(self, *a, **kw):
+        self.unescape = kw.pop('unescape', False)
+        super(Code128Handler, self).__init__(*a, **kw)
+
+    def varB(self, s):
+        vals = [104]
+        s = iter(s)
+        for c in s:
+            if self.unescape and c == '\\':
+                e = s.next()
+                # detect double backslash
+                if e == '\\':
+                    c = '\\'
+                else:
+                    vals.append(int(e + s.next() + s.next()))
+                    continue
+            val = ord(c) - 32
+            if not 0 <= val < len(self._patterns):
+                raise ValueError, "Character '%s' out of encoding range" % c
+            vals.append(val)
+        return vals
+
+    def patterns(self, s):
         if len(s) % 2 == 0 and re.match(r'^[0-9]+$', s):
-            values = cls.varC(s)
+            values = self.varC(s)
         else:
-            values = cls.varB(s)
-        return [cls._patterns[v] for v in (values + [cls.check(values), -1])]
+            values = self.varB(s)
+        return [self._patterns[v] for v in (values + [self.check(values), -1])]
 
     def get(self, value):
-        patterns = self.patterns(value)
+        patterns = self.patterns(value.decode('utf-8'))
         scale = int(self.request.get('s', '1'))
         imgs = [(len(p) * scale, _char_img(p, scale)) for p in patterns]
         (width, final), imgs = imgs[0], imgs[1:]
@@ -105,14 +117,19 @@ class Code128Handler(webapp2.RequestHandler):
         self.response.headers['Cache-Control'] = "public, max-age=%d" % (24 * 60 * 60)
         self.response.out.write(final)
 
+class EscapedCode128Handler(Code128Handler):
+    def __init__(self, *a, **kw):
+        super(EscapedCode128Handler, self).__init__(*a, unescape=True, **kw)
+
 
 class DocHandler(webapp2.RequestHandler):
-    """This should be enough documentation."""
     def get(self):
+        """This should be enough documentation."""
         self.redirect("/code128/Hello%20world!.png")
 
 
 app = webapp2.WSGIApplication([
    (r"^/$", DocHandler),
+   (r"^/\^code128/(.+)\.png$", EscapedCode128Handler),
    (r"^/code128/(.+)\.png$", Code128Handler),
 ])
