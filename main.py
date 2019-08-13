@@ -1,8 +1,6 @@
 from io import BytesIO
 import re
 
-from google.appengine.api import mail
-
 from PIL import Image
 import webapp2
 
@@ -77,7 +75,9 @@ class Code128Handler(webapp2.RequestHandler):
 
     def get(self, value):
         patterns = self.patterns(value.decode('utf-8'))
-        scale = max(1, min(10, int(self.request.get('s', '1'))))
+        scale = max(1, min(10, int(self.request.get('s', "1"))))
+
+        # generate the barcode pattern as a byte string
         row, width, pix, bit = "", 0, 0, 7
         for p in patterns:
             for c in p:
@@ -90,8 +90,10 @@ class Code128Handler(webapp2.RequestHandler):
                 else:
                     row += chr(pix)
                     pix, bit = 0, 7
-        # extra data gets ignored
-        row += chr(pix)
+        if bit < 7:
+            # include the trailing bits, extra data gets ignored
+            row += chr(pix)
+
         # logging.debug("row (%dpx): %s" % (width, "".join(format(ord(c), "08b") for c in row)))
 
         # raw args: raw mode, stride, orientation
@@ -101,7 +103,7 @@ class Code128Handler(webapp2.RequestHandler):
             barcode.save(pngb, "PNG")
             png = pngb.getvalue()
 
-        self.response.headers['Content-Type'] = mail.EXTENSION_MIME_MAP['png']
+        self.response.headers['Content-Type'] = "image/png"
         self.response.headers['Cache-Control'] = "public, max-age=%d" % (60 * 60)
         self.response.out.write(png)
 
