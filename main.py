@@ -119,8 +119,15 @@ class DocHandler(webapp2.RequestHandler):
         self.redirect("/code128/Hello%20world!.png")
 
 
+class EmptyHandler(webapp2.RequestHandler):
+    def get(self):
+        self.response.headers['Content-Type'] = "text/plain"
+        self.response.out.write("")
+
+
 app = webapp2.WSGIApplication([
    (r"^/$", DocHandler),
+   (r"^/_ah/warmup$", EmptyHandler),
    (r"^/\^code128/(.+)\.png$", EscapedCode128Handler),
    (r"^/code128/(.+)\.png$", Code128Handler),
 ])
