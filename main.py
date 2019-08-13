@@ -1,5 +1,4 @@
 from io import BytesIO
-import logging
 import re
 
 from google.appengine.api import mail
