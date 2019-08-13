@@ -1,35 +1,12 @@
+from io import BytesIO
+import logging
 import re
 
-from google.appengine.api import images, mail
+from google.appengine.api import mail
 
+from PIL import Image
 import webapp2
 
-
-# BMP data for a black pixel
-_pix = "BMJ\x00\x00\x00\x00\x00\x00\x00F\x00\x00\x008\x00\x00\x00\x01\x00\x00" \
-       "\x00\x01\x00\x00\x00\x01\x00\x10\x00\x03\x00\x00\x00\x04\x00\x00\x00" \
-       "\x13\x0b\x00\x00\x13\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
-       "\xf8\x00\x00\xe0\x07\x00\x00\x1f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-
-def mk_bar():
-    # need to do this in two parts as composite input limit is 16 images
-    part = images.composite([(_pix, 0, y, 1., images.TOP_LEFT) for y in xrange(10)],
-                            1, 10, 0x00000000, images.PNG)
-    return images.composite([(part, 0, y * 10, 1., images.TOP_LEFT) for y in xrange(3)],
-                            1, 30, 0x00000000, images.PNG), \
-           30
-bar, bar_height = mk_bar()
-
-def _char_img(bits, scale=None):
-    if scale and not 0 < scale <= 10:
-        raise ValueError, "Scale %d out of limits" % scale
-    if scale > 1:
-        _bar = images.composite([(bar, x, 0, 1., images.TOP_LEFT) for x in xrange(scale)],
-                                scale, bar_height, 0x00000000, images.PNG)
-    else:
-        _bar = bar
-    return images.composite([(_bar, x * scale, 0, 1., images.TOP_LEFT) for x, c in enumerate(bits) if c == '1'],
-                            len(bits) * scale, bar_height, 0xffffffff, images.PNG)
 
 class Code128Handler(webapp2.RequestHandler):
     # pattern ref: http://en.wikipedia.org/wiki/Code_128#Bar_code_widths
@@ -93,7 +70,7 @@ class Code128Handler(webapp2.RequestHandler):
         return vals
 
     def patterns(self, s):
-        if len(s) % 2 == 0 and re.match(r'^[0-9]+$', s):
+        if len(s) % 2 == 0 and re.match(r"^[0-9]+$", s):
             values = self.varC(s)
         else:
             values = self.varB(s)
@@ -101,21 +78,34 @@ class Code128Handler(webapp2.RequestHandler):
 
     def get(self, value):
         patterns = self.patterns(value.decode('utf-8'))
-        scale = int(self.request.get('s', '1'))
-        imgs = [(len(p) * scale, _char_img(p, scale)) for p in patterns]
-        (width, final), imgs = imgs[0], imgs[1:]
-        for w, img in imgs:
-            final = images.composite([(final, 0, 0, 1., images.TOP_LEFT),
-                                      (img, width, 0, 1., images.TOP_LEFT)],
-                                     width + w, bar_height, 0x00000000, images.PNG)
-            width += w
-        if scale > 1:
-            final = images.composite([(final, 0, y * bar_height, 1., images.TOP_LEFT)
-                                      for y in xrange(scale)],
-                                     width, bar_height * scale, 0x00000000, images.PNG)
+        scale = max(1, min(10, int(self.request.get('s', '1'))))
+        row, width, pix, bit = "", 0, 0, 7
+        for p in patterns:
+            for c in p:
+                width += 1
+                # "1" signifies existence of the bar, ie. 0 is blank ie. white
+                if c == "0":
+                    pix |= 1 << bit
+                if bit > 0:
+                    bit -= 1
+                else:
+                    row += chr(pix)
+                    pix, bit = 0, 7
+        # extra data gets ignored
+        row += chr(pix)
+        # logging.debug("row (%dpx): %s" % (width, "".join(format(ord(c), "08b") for c in row)))
+
+        # raw args: raw mode, stride, orientation
+        barcode = Image.fromstring("1", (width, 1), row, "raw", "1", 0, 1) \
+                       .resize((width * scale, 30 * scale))
+        with BytesIO() as pngb:
+            barcode.save(pngb, "PNG")
+            png = pngb.getvalue()
+
         self.response.headers['Content-Type'] = mail.EXTENSION_MIME_MAP['png']
-        self.response.headers['Cache-Control'] = "public, max-age=%d" % (24 * 60 * 60)
-        self.response.out.write(final)
+        self.response.headers['Cache-Control'] = "public, max-age=%d" % (60 * 60)
+        self.response.out.write(png)
+
 
 class EscapedCode128Handler(Code128Handler):
     def __init__(self, *a, **kw):

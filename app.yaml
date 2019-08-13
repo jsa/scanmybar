@@ -1,6 +1,4 @@
-application: scanmybar
-module: default
-version: change-me
+service: barcode
 runtime: python27
 api_version: 1
 threadsafe: true
@@ -8,15 +6,28 @@ threadsafe: true
 instance_class: F1
 automatic_scaling:
   min_idle_instances: 1
+  max_idle_instances: 2
+  min_pending_latency: 0.5s
+  max_pending_latency: 2s
+  max_concurrent_requests: 16
 
 default_expiration: 0
+
+inbound_services:
+- warmup
+
+libraries:
+- name: PIL
+  version: "1.1.7"
+- name: webapp2
+  version: "2.5.2"
 
 handlers:
 - url: /.*
   script: main.app
 
-skip_files: |
- ^(.*/)?(
- (\..*)|
- (.*\.pyc)|
- )$
+skip_files:
+- ^\.
+- .*\.md$
+- .*\.py[co]$
+- .*\.sh$
